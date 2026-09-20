@@ -81,7 +81,9 @@ create table if not exists public.transactions (
 
 alter table public.transactions enable row level security;
 
-create policy if not exists "Allow anon full access to transactions"
+drop policy if exists "Allow anon full access to transactions" on public.transactions;
+
+create policy "Allow anon full access to transactions"
 on public.transactions
 for all
 to anon

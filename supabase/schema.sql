@@ -19,8 +19,10 @@ create table if not exists public.transactions (
 -- 2. Enable Row Level Security (RLS)
 alter table public.transactions enable row level security;
 
--- 3. Create RLS Policy to allow anon public key read/write access
-create policy if not exists "Allow anon full access to transactions"
+-- 3. Drop existing policy if exists, then create RLS Policy
+drop policy if exists "Allow anon full access to transactions" on public.transactions;
+
+create policy "Allow anon full access to transactions"
 on public.transactions
 for all
 to anon
