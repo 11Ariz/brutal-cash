@@ -126,6 +126,20 @@ export class CloudSyncService {
       return { count: 0 };
     }
 
+    // PostgREST requirement: In batch POST requests, EVERY object in the array MUST contain the exact same keys.
+    // If 'note' is undefined on some objects, JSON.stringify omits it, causing 'All object keys must match' error.
+    const normalizedTransactions = transactions.map((tx) => ({
+      id: String(tx.id),
+      type: tx.type,
+      amount: Number(tx.amount),
+      title: String(tx.title || ""),
+      category: String(tx.category || "Other"),
+      account: tx.account || "cash",
+      note: tx.note !== undefined && tx.note !== null && tx.note !== "" ? String(tx.note) : null,
+      date: String(tx.date),
+      createdAt: String(tx.createdAt),
+    }));
+
     try {
       const res = await fetch(`${url}/rest/v1/transactions`, {
         method: "POST",
@@ -133,7 +147,7 @@ export class CloudSyncService {
           ...this.getHeaders(anonKey),
           Prefer: "resolution=merge-duplicates",
         },
-        body: JSON.stringify(transactions),
+        body: JSON.stringify(normalizedTransactions),
       });
 
       if (!res.ok) {
@@ -181,7 +195,18 @@ export class CloudSyncService {
       }
 
       const data = await res.json();
-      return { transactions: data as Transaction[] };
+      const transactions: Transaction[] = (data as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        type: (row.type as "income" | "expense") || "expense",
+        amount: Number(row.amount) || 0,
+        title: String(row.title || ""),
+        category: String(row.category || "Other"),
+        account: (row.account as "cash" | "upi") || "cash",
+        note: row.note ? String(row.note) : undefined,
+        date: String(row.date),
+        createdAt: String(row.createdAt || new Date().toISOString()),
+      }));
+      return { transactions };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Sync error";
       return { transactions: [], error: msg };
