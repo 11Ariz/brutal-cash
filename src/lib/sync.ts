@@ -32,21 +32,32 @@ export class CloudSyncService {
       return { success: false, message: "URL and API Key are required." };
     }
 
+    // Step 0: Client-side inspection of JWT payload if applicable
     try {
-      // Step 1: Verify API Key against root PostgREST endpoint
-      const res = await fetch(`${url}/rest/v1/`, {
+      const parts = anonKey.split(".");
+      if (parts.length === 3) {
+        const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+        const payload = JSON.parse(payloadJson);
+        const urlMatch = url.match(/https?:\/\/([^.]+)\.supabase\.co/i);
+        if (urlMatch && payload.ref && payload.ref.toLowerCase() !== urlMatch[1].toLowerCase()) {
+          return {
+            success: false,
+            message: `⚠️ Project Mismatch! Your API Key belongs to project "${payload.ref}", but the Project URL is "${urlMatch[1]}". Please copy the key from project "${urlMatch[1]}".`,
+          };
+        }
+      }
+    } catch {
+      // non-blocking if not standard JWT or parsing fails
+    }
+
+    try {
+      // Step 1: Verify API Key against Supabase Auth Settings endpoint (officially accessible by anon key)
+      const res = await fetch(`${url}/auth/v1/settings`, {
         method: "GET",
         headers: this.getHeaders(anonKey),
       });
 
       if (!res.ok && res.status !== 200) {
-        if (res.status === 401) {
-          return {
-            success: false,
-            message: "HTTP 401: Invalid API Key. Make sure you copy the 'anon' 'public' key (starts with 'eyJh...') from Supabase Project Settings > API, not your database password or personal access token.",
-          };
-        }
-
         let detail = "";
         try {
           const errJson = await res.json();
@@ -56,15 +67,22 @@ export class CloudSyncService {
           // ignore json parse error
         }
 
+        if (res.status === 401) {
+          return {
+            success: false,
+            message: `HTTP 401: Invalid API Key. Supabase rejected this key (${detail || "Unauthorized"}). Please double-check you copied the 'anon' 'public' key for this project.`,
+          };
+        }
+
         return {
           success: false,
           message: `Server returned HTTP ${res.status}: ${detail || res.statusText || "Connection error"}`,
         };
       }
 
-      // Step 2: Check if 'transactions' table exists
+      // Step 2: Check if 'transactions' table exists in database
       try {
-        const tableCheckRes = await fetch(`${url}/rest/v1/transactions?limit=1`, {
+        const tableCheckRes = await fetch(`${url}/rest/v1/transactions?select=id&limit=1`, {
           method: "GET",
           headers: this.getHeaders(anonKey),
         });
@@ -73,13 +91,19 @@ export class CloudSyncService {
           return {
             success: true,
             tableReady: true,
-            message: "Connected! Supabase database and 'transactions' table are ready.",
+            message: "Connected! Supabase database and 'transactions' table are ready to sync.",
           };
         } else if (tableCheckRes.status === 404 || tableCheckRes.status === 400) {
           return {
             success: true,
             tableReady: false,
-            message: "API Key verified! Note: The 'transactions' table was not found yet. Run the SQL setup script below in your Supabase SQL Editor.",
+            message: "API Key verified! Note: 'transactions' table was not found. Please run the SQL setup script below in your Supabase SQL Editor.",
+          };
+        } else if (tableCheckRes.status === 403) {
+          return {
+            success: true,
+            tableReady: false,
+            message: "API Key verified! Table exists but Row Level Security is blocking access. Run the SQL setup script below.",
           };
         }
       } catch {

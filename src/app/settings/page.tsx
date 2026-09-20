@@ -377,7 +377,13 @@ with check (true);`;
           </div>
 
           {syncFeedback && (
-            <div className="text-xs font-bold text-[#111111] bg-yellow-100 p-2.5 rounded-xl border-2 border-[#111111] space-y-1">
+            <div
+              className={`text-xs font-bold p-2.5 rounded-xl border-2 space-y-1 ${
+                syncFeedback.toLowerCase().includes("connected") || syncFeedback.toLowerCase().includes("verified") || syncFeedback.includes("✅")
+                  ? "bg-[#7BF1A8]/40 border-[#111111] text-[#111111]"
+                  : "bg-yellow-100 border-[#111111] text-[#111111]"
+              }`}
+            >
               <p>{syncFeedback}</p>
             </div>
           )}
