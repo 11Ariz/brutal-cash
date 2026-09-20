@@ -3,7 +3,7 @@
 import React from "react";
 import { Transaction } from "@/types";
 import { useExpense } from "@/context/ExpenseContext";
-import { formatMoney } from "@/lib/calculations";
+import { formatMoney, getEarliestMoneyDate, getLocalDateString } from "@/lib/calculations";
 import { X, Plus, Trash2, ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 interface DayDetailsModalProps {
@@ -23,6 +23,11 @@ export default function DayDetailsModal({ date, onClose }: DayDetailsModalProps)
   const totalIncome = dayTransactions
     .filter((t) => t.type === "income")
     .reduce((acc, curr) => acc + curr.amount, 0);
+
+  const earliestMoneyDate = getEarliestMoneyDate(transactions);
+  const todayStr = getLocalDateString();
+  const isBeforeMoneyAdded = earliestMoneyDate ? date < earliestMoneyDate : true;
+  const isFuture = date > todayStr;
 
   const formattedDate = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -46,10 +51,14 @@ export default function DayDetailsModal({ date, onClose }: DayDetailsModalProps)
           <div>
             <h3 className="font-extrabold text-base uppercase text-[#111111]">{formattedDate}</h3>
             <p className="text-xs font-bold text-gray-600">
-              {totalExpense === 0 ? (
-                <span className="text-green-700 font-black">🔥 Zero Spend Day!</span>
-              ) : (
+              {totalExpense > 0 ? (
                 `Spent ${formatMoney(totalExpense, settings.currency)}`
+              ) : isBeforeMoneyAdded ? (
+                <span className="text-gray-500 font-bold">Prior to first money added</span>
+              ) : isFuture ? (
+                <span className="text-gray-500 font-bold">Future Date</span>
+              ) : (
+                <span className="text-green-700 font-black">🔥 Zero Spend Day!</span>
               )}
             </p>
           </div>
@@ -81,10 +90,16 @@ export default function DayDetailsModal({ date, onClose }: DayDetailsModalProps)
         <div className="flex-1 overflow-y-auto my-2 space-y-2">
           {dayTransactions.length === 0 ? (
             <div className="text-center py-8 bg-white border-2 border-[#111111] rounded-2xl brutal-shadow-sm p-4">
-              <span className="text-3xl mb-1 block">🏖️</span>
+              <span className="text-3xl mb-1 block">
+                {isBeforeMoneyAdded ? "🗓️" : isFuture ? "🔮" : "🏖️"}
+              </span>
               <p className="font-extrabold text-sm text-[#111111]">No transactions on this day</p>
               <p className="text-xs text-gray-500 font-bold mt-1">
-                Zero expenses helped fuel your streak!
+                {isBeforeMoneyAdded
+                  ? "This day was before money was first logged in your app."
+                  : isFuture
+                  ? "Log an upcoming planned expense or backdate an entry."
+                  : "Zero expenses helped fuel your streak!"}
               </p>
             </div>
           ) : (

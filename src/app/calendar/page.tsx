@@ -2,12 +2,17 @@
 
 import React, { useState, useMemo } from "react";
 import { useExpense } from "@/context/ExpenseContext";
-import { formatMoney, getLocalDateString } from "@/lib/calculations";
+import { formatMoney, getLocalDateString, getEarliestMoneyDate } from "@/lib/calculations";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Flame, Plus } from "lucide-react";
 import DayDetailsModal from "@/components/DayDetailsModal";
 
 export default function CalendarPage() {
   const { transactions, settings, openAddModal } = useExpense();
+
+  // Earliest date money was added into the app
+  const firstMoneyDateStr = useMemo(() => {
+    return getEarliestMoneyDate(transactions);
+  }, [transactions]);
 
   // Current viewed month and year
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -133,16 +138,18 @@ export default function CalendarPage() {
       if (dayData) {
         totalExpense += dayData.expense;
         totalIncome += dayData.income;
-        if (dayData.expense === 0 && dStr <= todayStr) {
+      }
+
+      // Only count as a No-Spend day if on or after the first day money was added, and up to today
+      if (firstMoneyDateStr && dStr >= firstMoneyDateStr && dStr <= todayStr) {
+        if (!dayData || dayData.expense === 0) {
           noSpendDays++;
         }
-      } else if (dStr <= todayStr) {
-        noSpendDays++;
       }
     }
 
     return { totalExpense, totalIncome, noSpendDays };
-  }, [dailyTotals, year, month]);
+  }, [dailyTotals, year, month, firstMoneyDateStr]);
 
   const weekDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -233,7 +240,13 @@ export default function CalendarPage() {
             const dayData = dailyTotals[cell.dateStr];
             const hasExpense = dayData && dayData.expense > 0;
             const hasIncome = dayData && dayData.income > 0;
-            const isNoSpend = cell.isPastOrToday && (!dayData || dayData.expense === 0);
+            // Only consider as No-Spend day if on or after the day money was first added
+            const isNoSpend = Boolean(
+              firstMoneyDateStr &&
+              cell.dateStr >= firstMoneyDateStr &&
+              cell.isPastOrToday &&
+              (!dayData || dayData.expense === 0)
+            );
 
             return (
               <button

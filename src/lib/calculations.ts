@@ -132,13 +132,24 @@ export function calculateSafeSpend(totalBalance: number): SafeSpendInfo {
   };
 }
 
+// Helper to get earliest date money was logged (income, or fallback to first transaction)
+export function getEarliestMoneyDate(transactions: Transaction[]): string | null {
+  const incomes = transactions.filter((t) => t.type === "income");
+  if (incomes.length > 0) {
+    return incomes.map((t) => t.date).sort()[0];
+  }
+  if (transactions.length > 0) {
+    return transactions.map((t) => t.date).sort()[0];
+  }
+  return null;
+}
+
 // 3b. Average Daily Spend From The Day Money Was Put In
 // Calculates: Total Expenses ÷ Days Since First Income/Transaction
 export function calculateAverageSpendSinceStart(transactions: Transaction[]): AverageSpendSinceStartInfo {
-  const incomes = transactions.filter((t) => t.type === "income");
-  const referenceTransactions = incomes.length > 0 ? incomes : transactions;
+  const startDateStr = getEarliestMoneyDate(transactions);
 
-  if (referenceTransactions.length === 0) {
+  if (!startDateStr) {
     return {
       averageDailySpend: 0,
       totalExpenses: 0,
@@ -149,9 +160,6 @@ export function calculateAverageSpendSinceStart(transactions: Transaction[]): Av
     };
   }
 
-  // Sort dates ascending
-  const dates = referenceTransactions.map((t) => t.date).sort();
-  const startDateStr = dates[0];
   const startDate = new Date(startDateStr + "T00:00:00");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -173,13 +181,20 @@ export function calculateAverageSpendSinceStart(transactions: Transaction[]): Av
 
   const averageDailySpend = Math.round(totalExpenses / daysActive);
 
+  let message = `Burning an average of ₹${averageDailySpend.toLocaleString()} per day over ${daysActive} day${daysActive === 1 ? "" : "s"}.`;
+  if (totalExpenses === 0) {
+    message = "Zero expenses logged since your first deposit! Keep it up!";
+  } else if (averageDailySpend > 2000) {
+    message = "High daily burn rate! Consider trimming discretionary spending.";
+  }
+
   return {
     averageDailySpend,
     totalExpenses,
     totalIncome,
     daysActive,
     startDate: startDateStr,
-    message: `Averaging ₹${averageDailySpend.toLocaleString()}/day across ${daysActive} day${daysActive > 1 ? "s" : ""} of tracking.`,
+    message,
   };
 }
 
@@ -225,26 +240,32 @@ export function calculateCategoryBreakdown(
 // 4. No Spend Streak System
 // Definition: A day with zero expenses, tracking ONLY from the day money was first added
 export function calculateStreak(transactions: Transaction[]): StreakInfo {
-  const incomes = transactions.filter((t) => t.type === "income");
-  const referenceList = incomes.length > 0 ? incomes : transactions;
+  const earliestMoneyDateStr = getEarliestMoneyDate(transactions);
 
   // If no transactions or money added yet, streak is 0
-  if (referenceList.length === 0) {
+  if (!earliestMoneyDateStr) {
     return {
       currentStreak: 0,
       longestStreak: 0,
-      isTodayNoSpend: true,
+      isTodayNoSpend: false,
     };
   }
 
-  // Earliest date money was added
-  const earliestMoneyDateStr = referenceList.map((t) => t.date).sort()[0];
+  const todayStr = getLocalDateString(new Date());
+
+  // If today is before money was ever added, streak is 0
+  if (todayStr < earliestMoneyDateStr) {
+    return {
+      currentStreak: 0,
+      longestStreak: 0,
+      isTodayNoSpend: false,
+    };
+  }
 
   const expenseDates = new Set(
     transactions.filter((t) => t.type === "expense").map((t) => t.date)
   );
 
-  const todayStr = getLocalDateString(new Date());
   const isTodayNoSpend = !expenseDates.has(todayStr);
 
   let currentStreak = 0;
