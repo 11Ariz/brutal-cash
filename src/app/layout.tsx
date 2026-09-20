@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   icons: {
     icon: `${basePath}/icons/icon.svg`,
     shortcut: `${basePath}/icons/icon-192.png`,
-    apple: `${basePath}/icons/icon-192.png`,
+    apple: `${basePath}/icons/apple-touch-icon.png`,
   },
   appleWebApp: {
     capable: true,

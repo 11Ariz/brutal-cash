@@ -1,5 +1,5 @@
 // BRUTAL CASH Offline-First Service Worker
-const CACHE_NAME = "brutal-cash-v2";
+const CACHE_NAME = "brutal-cash-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -9,7 +9,10 @@ self.addEventListener("install", (event) => {
         "./manifest.json",
         "./icons/icon.svg",
         "./icons/icon-192.png",
-        "./icons/icon-512.png"
+        "./icons/icon-512.png",
+        "./icons/icon-maskable-192.png",
+        "./icons/icon-maskable-512.png",
+        "./icons/apple-touch-icon.png"
       ]);
     }).catch((err) => {
       console.warn("Pre-cache error:", err);
