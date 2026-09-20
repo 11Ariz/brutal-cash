@@ -1,20 +1,18 @@
 // BRUTAL CASH Offline-First Service Worker
-const CACHE_NAME = "brutal-cash-v1";
-
-const STATIC_ASSETS = [
-  "/",
-  "/history",
-  "/calendar",
-  "/analytics",
-  "/settings",
-  "/manifest.json",
-  "/icons/icon.svg",
-];
+const CACHE_NAME = "brutal-cash-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      return cache.addAll([
+        "./",
+        "./manifest.json",
+        "./icons/icon.svg",
+        "./icons/icon-192.png",
+        "./icons/icon-512.png"
+      ]);
+    }).catch((err) => {
+      console.warn("Pre-cache error:", err);
     })
   );
   self.skipWaiting();
@@ -34,25 +32,21 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Only handle GET requests
   if (event.request.method !== "GET") return;
 
   const url = new URL(event.request.url);
 
-  // Don't cache Supabase remote REST API calls directly with static worker
-  if (url.hostname.includes("supabase.co")) {
-    return;
-  }
+  // Don't intercept Supabase calls
+  if (url.hostname.includes("supabase.co")) return;
 
-  // Network First, fallback to Cache strategy
+  // Stale-While-Revalidate / Network First with cache fallback
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache valid responses
-        if (response.status === 200) {
-          const responseClone = response.clone();
+        if (response && response.status === 200) {
+          const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
+            cache.put(event.request, clone);
           });
         }
         return response;
@@ -62,14 +56,10 @@ self.addEventListener("fetch", (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          // Fallback to home page for navigation requests
           if (event.request.mode === "navigate") {
-            return caches.match("/");
+            return caches.match("./") || caches.match("./index.html");
           }
-          return new Response("Offline - Brutal Cash", {
-            status: 503,
-            statusText: "Service Unavailable",
-          });
+          return new Response("Offline", { status: 503 });
         });
       })
   );

@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wallet, History, Calendar, BarChart3, Settings, Plus } from "lucide-react";
 import { useExpense } from "@/context/ExpenseContext";
+import { tactileFeedback } from "@/lib/sound";
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { openAddModal } = useExpense();
+  const { openAddModal, settings } = useExpense();
 
   const navItems = [
     { href: "/", label: "Home", icon: Wallet },
@@ -29,6 +30,7 @@ export default function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => tactileFeedback(settings.soundEnabled, settings.hapticsEnabled)}
               className={`flex flex-col items-center justify-center min-w-[54px] min-h-[48px] rounded-xl transition-all ${
                 isActive
                   ? "bg-[#FFD84D] border-2 border-[#111111] brutal-shadow-sm font-extrabold text-[#111111]"
@@ -43,7 +45,10 @@ export default function BottomNav() {
 
         {/* Center Quick Add Button (Neo-Brutalist Floating Action Style) */}
         <button
-          onClick={() => openAddModal()}
+          onClick={() => {
+            tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+            openAddModal();
+          }}
           aria-label="Add Transaction"
           className="relative -top-5 flex items-center justify-center w-14 h-14 bg-[#FF8FAB] hover:bg-[#FF6B6B] text-[#111111] rounded-2xl border-3 border-[#111111] brutal-shadow active:translate-x-1 active:translate-y-1 active:shadow-none transition-all group"
         >
@@ -57,6 +62,7 @@ export default function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => tactileFeedback(settings.soundEnabled, settings.hapticsEnabled)}
               className={`flex flex-col items-center justify-center min-w-[54px] min-h-[48px] rounded-xl transition-all ${
                 isActive
                   ? "bg-[#FFD84D] border-2 border-[#111111] brutal-shadow-sm font-extrabold text-[#111111]"

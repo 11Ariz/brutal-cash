@@ -23,10 +23,17 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export const metadata: Metadata = {
   title: "BRUTAL CASH | Playful Neo-Brutalist Expense & Balance Tracker",
   description: "Mobile-first, offline-first balance money tracker with instant speed and neo-brutalist charm.",
-  manifest: "/manifest.json",
+  manifest: `${basePath}/manifest.json`,
+  icons: {
+    icon: `${basePath}/icons/icon.svg`,
+    shortcut: `${basePath}/icons/icon-192.png`,
+    apple: `${basePath}/icons/icon-192.png`,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

@@ -1,4 +1,4 @@
-// Synthesized Web Audio API sound effects for Neo-Brutalist tactile feel
+// Synthesized Web Audio API sound effects and mobile haptics for Neo-Brutalist tactile feel
 
 let audioCtx: AudioContext | null = null;
 
@@ -6,18 +6,34 @@ function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   try {
     if (!audioCtx) {
-      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtxClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtxClass) {
         audioCtx = new AudioCtxClass();
       }
     }
     if (audioCtx && audioCtx.state === "suspended") {
-      audioCtx.resume();
+      audioCtx.resume().catch(() => {});
     }
     return audioCtx;
   } catch {
     return null;
   }
+}
+
+// Global user gesture unlock for mobile browsers (iOS Safari & Android Chrome)
+if (typeof window !== "undefined") {
+  const unlockAudio = () => {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+  };
+
+  window.addEventListener("pointerdown", unlockAudio, { passive: true });
+  window.addEventListener("touchstart", unlockAudio, { passive: true });
+  window.addEventListener("click", unlockAudio, { passive: true });
 }
 
 export function playPop(enabled = true) {
@@ -131,16 +147,26 @@ export function playStreakCelebration(enabled = true) {
 }
 
 export function triggerHaptic(enabled = true, style: "light" | "medium" | "heavy" = "light") {
-  if (!enabled || typeof navigator === "undefined" || !navigator.vibrate) return;
+  if (!enabled || typeof window === "undefined") return;
+
+  // 1. Native Vibration API (Supported on Android phones)
   try {
-    if (style === "light") {
-      navigator.vibrate(10);
-    } else if (style === "medium") {
-      navigator.vibrate(25);
-    } else {
-      navigator.vibrate([30, 40, 30]);
+    if (typeof navigator !== "undefined" && "vibrate" in navigator && typeof navigator.vibrate === "function") {
+      if (style === "light") {
+        navigator.vibrate(15);
+      } else if (style === "medium") {
+        navigator.vibrate(35);
+      } else {
+        navigator.vibrate([30, 40, 40]);
+      }
     }
   } catch {
-    // Ignore haptic errors
+    // Ignore vibration errors
   }
+}
+
+// Convenient unified feedback for buttons
+export function tactileFeedback(soundEnabled = true, hapticsEnabled = true) {
+  triggerHaptic(hapticsEnabled, "light");
+  playPop(soundEnabled);
 }

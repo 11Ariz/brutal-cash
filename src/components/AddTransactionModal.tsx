@@ -5,6 +5,7 @@ import { useExpense } from "@/context/ExpenseContext";
 import { TransactionType, AccountType } from "@/types";
 import { QUICK_AMOUNTS, TITLE_SUGGESTIONS } from "@/lib/constants";
 import { getLocalDateString } from "@/lib/calculations";
+import { tactileFeedback } from "@/lib/sound";
 import { X, Check, Plus, Calendar as CalendarIcon, Sparkles } from "lucide-react";
 import CategoryManagerModal from "./CategoryManagerModal";
 
@@ -63,6 +64,7 @@ export default function AddTransactionModal() {
 
   // Handle Quick Date switches
   const handleDateModeChange = (mode: "today" | "yesterday" | "custom") => {
+    tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
     setDateMode(mode);
     if (mode === "today") {
       setDate(getLocalDateString());
@@ -75,6 +77,7 @@ export default function AddTransactionModal() {
 
   // Add quick amount chips
   const handleAddQuickAmount = (val: number) => {
+    tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
     const current = parseFloat(amount) || 0;
     setAmount((current + val).toString());
   };
@@ -142,6 +145,7 @@ export default function AddTransactionModal() {
               <button
                 type="button"
                 onClick={() => {
+                  tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
                   setType("expense");
                   if (category === "Salary" || category === "Freelance") setCategory("Food");
                 }}
@@ -158,6 +162,7 @@ export default function AddTransactionModal() {
               <button
                 type="button"
                 onClick={() => {
+                  tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
                   setType("income");
                   if (category === "Food" || category === "Travel") setCategory("Salary");
                 }}
@@ -226,7 +231,10 @@ export default function AddTransactionModal() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setAccount("cash")}
+                  onClick={() => {
+                    tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+                    setAccount("cash");
+                  }}
                   className={`brutal-btn py-2 text-xs uppercase ${
                     account === "cash"
                       ? "bg-[#7BF1A8] text-[#111111]"
@@ -239,7 +247,10 @@ export default function AddTransactionModal() {
 
                 <button
                   type="button"
-                  onClick={() => setAccount("upi")}
+                  onClick={() => {
+                    tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+                    setAccount("upi");
+                  }}
                   className={`brutal-btn py-2 text-xs uppercase ${
                     account === "upi"
                       ? "bg-[#80BFFF] text-[#111111]"
@@ -271,7 +282,10 @@ export default function AddTransactionModal() {
                   <button
                     key={sugg}
                     type="button"
-                    onClick={() => setTitle(sugg)}
+                    onClick={() => {
+                      tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+                      setTitle(sugg);
+                    }}
                     className="whitespace-nowrap px-2.5 py-1 text-xs font-bold bg-white border-2 border-[#111111] rounded-lg brutal-shadow-sm hover:bg-[#FFD84D] active:translate-x-0.5 active:translate-y-0.5"
                   >
                     {sugg}
@@ -288,7 +302,10 @@ export default function AddTransactionModal() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => setIsCategoryManagerOpen(true)}
+                  onClick={() => {
+                    tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+                    setIsCategoryManagerOpen(true);
+                  }}
                   className="text-xs font-bold text-[#111111] underline hover:text-[#FF8FAB]"
                 >
                   + Edit Categories
@@ -302,7 +319,10 @@ export default function AddTransactionModal() {
                     <button
                       key={cat.id}
                       type="button"
-                      onClick={() => setCategory(cat.name)}
+                      onClick={() => {
+                        tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+                        setCategory(cat.name);
+                      }}
                       className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 border-[#111111] transition-all ${
                         isSelected
                           ? "bg-[#FFD84D] brutal-shadow scale-105 font-black"

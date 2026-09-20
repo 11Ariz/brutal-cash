@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useExpense } from "@/context/ExpenseContext";
-import { formatMoney } from "@/lib/calculations";
+import { formatMoney, calculateCategoryBreakdown } from "@/lib/calculations";
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -17,6 +17,7 @@ import {
   PlusCircle,
   MinusCircle,
   Trophy,
+  PieChart,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -24,16 +25,23 @@ export default function DashboardPage() {
   const {
     balances,
     stats,
-    safeSpend,
+    averageSpendSinceStart,
     streak,
     anomaly,
     transactions,
+    categories,
     settings,
     openAddModal,
     deleteTransaction,
     loadSampleData,
     isLoaded,
   } = useExpense();
+
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "month">("all");
+
+  const dashboardCategoryBreakdown = useMemo(() => {
+    return calculateCategoryBreakdown(transactions, categories, categoryFilter);
+  }, [transactions, categories, categoryFilter]);
 
   const handleStreakClick = () => {
     confetti({
@@ -169,42 +177,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 3. DAILY SPENDING LIMIT CARD ("Safe Spend Today") */}
+      {/* 3. AVERAGE DAILY SPEND CARD (Calculated from the day money was first put in) */}
       <div className="bg-white border-3 border-[#111111] rounded-2xl p-4 brutal-shadow space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-base">🎯</span>
+            <span className="text-base">📈</span>
             <span className="text-xs font-black uppercase tracking-wider text-[#111111]">
-              Daily Spending Limit
+              Average Daily Spend
             </span>
           </div>
-          <span
-            className={`brutal-badge text-[10px] ${
-              safeSpend.status === "surplus"
-                ? "bg-[#7BF1A8]"
-                : safeSpend.status === "healthy"
-                ? "bg-[#FFD84D]"
-                : safeSpend.status === "warning"
-                ? "bg-[#FFB347]"
-                : "bg-[#FF6B6B] text-white"
-            }`}
-          >
-            {safeSpend.status === "surplus" ? "Safe to Spend" : safeSpend.status.toUpperCase()}
+          <span className="brutal-badge text-[10px] bg-[#FFD84D] text-[#111111]">
+            {averageSpendSinceStart.daysActive} Day{averageSpendSinceStart.daysActive === 1 ? "" : "s"} Tracked
           </span>
         </div>
 
         <div className="flex items-baseline justify-between pt-1">
           <div>
             <div className="text-3xl font-black text-[#111111]">
-              {formatMoney(safeSpend.safeDailyAmount, settings.currency)}
+              {formatMoney(averageSpendSinceStart.averageDailySpend, settings.currency)}
               <span className="text-xs font-bold text-gray-500"> / day</span>
             </div>
-            <p className="text-xs font-bold text-gray-700 mt-0.5">{safeSpend.message}</p>
+            <p className="text-xs font-bold text-gray-700 mt-0.5">
+              {averageSpendSinceStart.startDate
+                ? `Since money was first logged on ${averageSpendSinceStart.startDate}`
+                : "Add money to start tracking your daily average"}
+            </p>
           </div>
           <div className="text-right">
-            <span className="text-[10px] font-extrabold uppercase text-gray-500 block">Formula</span>
-            <span className="text-[11px] font-bold text-[#111111] bg-yellow-100 border border-[#111111] px-1.5 py-0.5 rounded">
-              Balance ÷ {safeSpend.remainingDaysInMonth} days
+            <span className="text-[10px] font-extrabold uppercase text-gray-500 block">Total Spent</span>
+            <span className="text-[11px] font-bold text-[#111111] bg-pink-100 border border-[#111111] px-1.5 py-0.5 rounded inline-block">
+              {formatMoney(averageSpendSinceStart.totalExpenses, settings.currency)}
             </span>
           </div>
         </div>
@@ -285,7 +287,82 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 5. RECENT TRANSACTIONS (Latest 10) */}
+      {/* 5. CATEGORY-WISE SPENDS (How much on Food, Travel, etc.) */}
+      <div className="bg-white border-3 border-[#111111] rounded-2xl p-4 brutal-shadow space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">🏷️</span>
+            <h3 className="font-black text-xs uppercase tracking-wider text-[#111111]">
+              Category-Wise Spends
+            </h3>
+          </div>
+          <div className="flex bg-[#FFF9E8] border-2 border-[#111111] rounded-lg p-0.5">
+            <button
+              onClick={() => setCategoryFilter("all")}
+              className={`px-2 py-0.5 text-[10px] font-black uppercase rounded transition-all ${
+                categoryFilter === "all"
+                  ? "bg-[#FFD84D] border border-[#111111] brutal-shadow-sm text-[#111111]"
+                  : "text-gray-500"
+              }`}
+            >
+              All Time
+            </button>
+            <button
+              onClick={() => setCategoryFilter("month")}
+              className={`px-2 py-0.5 text-[10px] font-black uppercase rounded transition-all ${
+                categoryFilter === "month"
+                  ? "bg-[#FFD84D] border border-[#111111] brutal-shadow-sm text-[#111111]"
+                  : "text-gray-500"
+              }`}
+            >
+              This Month
+            </button>
+          </div>
+        </div>
+
+        {dashboardCategoryBreakdown.length === 0 ? (
+          <p className="text-xs font-bold text-gray-500 py-3 text-center">
+            No expenses recorded yet in this period.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {dashboardCategoryBreakdown.map((cat) => (
+              <div key={cat.name} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">{cat.icon}</span>
+                    <span className="font-extrabold text-[#111111]">{cat.name}</span>
+                    <span className="text-[10px] font-bold text-gray-500">
+                      ({cat.count} spend{cat.count === 1 ? "" : "s"})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-[#111111]">
+                      {formatMoney(cat.amount, settings.currency)}
+                    </span>
+                    <span className="brutal-badge text-[9px] bg-white py-0 px-1">
+                      {cat.percentage}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Colored Progress Bar */}
+                <div className="h-3 w-full bg-[#FFF9E8] border-2 border-[#111111] rounded-lg overflow-hidden">
+                  <div
+                    style={{
+                      width: `${cat.percentage}%`,
+                      backgroundColor: cat.color,
+                    }}
+                    className="h-full border-r border-[#111111] transition-all duration-300"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 6. RECENT TRANSACTIONS (Latest 10) */}
       <div className="bg-white border-3 border-[#111111] rounded-2xl p-4 brutal-shadow space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-black text-xs uppercase tracking-wider text-[#111111]">

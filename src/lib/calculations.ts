@@ -1,4 +1,14 @@
-import { Transaction, AccountBalances, SpendingStats, StreakInfo, SafeSpendInfo, AnomalyInfo } from "@/types";
+import {
+  Transaction,
+  Category,
+  AccountBalances,
+  SpendingStats,
+  StreakInfo,
+  SafeSpendInfo,
+  AverageSpendSinceStartInfo,
+  CategorySpendItem,
+  AnomalyInfo,
+} from "@/types";
 
 // Format date as YYYY-MM-DD in local time
 export function getLocalDateString(d: Date = new Date()): string {
@@ -120,6 +130,96 @@ export function calculateSafeSpend(totalBalance: number): SafeSpendInfo {
     status,
     message,
   };
+}
+
+// 3b. Average Daily Spend From The Day Money Was Put In
+// Calculates: Total Expenses ÷ Days Since First Income/Transaction
+export function calculateAverageSpendSinceStart(transactions: Transaction[]): AverageSpendSinceStartInfo {
+  const incomes = transactions.filter((t) => t.type === "income");
+  const referenceTransactions = incomes.length > 0 ? incomes : transactions;
+
+  if (referenceTransactions.length === 0) {
+    return {
+      averageDailySpend: 0,
+      totalExpenses: 0,
+      totalIncome: 0,
+      daysActive: 1,
+      startDate: null,
+      message: "Add money to start tracking your daily average burn.",
+    };
+  }
+
+  // Sort dates ascending
+  const dates = referenceTransactions.map((t) => t.date).sort();
+  const startDateStr = dates[0];
+  const startDate = new Date(startDateStr + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Number of days since start date, including today
+  const diffTime = Math.max(0, today.getTime() - startDate.getTime());
+  const daysActive = Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+  let totalExpenses = 0;
+  let totalIncome = 0;
+
+  for (const t of transactions) {
+    if (t.type === "expense") {
+      totalExpenses += t.amount;
+    } else {
+      totalIncome += t.amount;
+    }
+  }
+
+  const averageDailySpend = Math.round(totalExpenses / daysActive);
+
+  return {
+    averageDailySpend,
+    totalExpenses,
+    totalIncome,
+    daysActive,
+    startDate: startDateStr,
+    message: `Averaging ₹${averageDailySpend.toLocaleString()}/day across ${daysActive} day${daysActive > 1 ? "s" : ""} of tracking.`,
+  };
+}
+
+// 3c. Category-Wise Spending Breakdown
+export function calculateCategoryBreakdown(
+  transactions: Transaction[],
+  categories: Category[],
+  filter: "all" | "month" = "all"
+): CategorySpendItem[] {
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+  const map: { [name: string]: { amount: number; count: number } } = {};
+  let totalExpense = 0;
+
+  for (const t of transactions) {
+    if (t.type !== "expense") continue;
+    if (filter === "month" && t.date < monthStart) continue;
+
+    if (!map[t.category]) {
+      map[t.category] = { amount: 0, count: 0 };
+    }
+    map[t.category].amount += t.amount;
+    map[t.category].count += 1;
+    totalExpense += t.amount;
+  }
+
+  return Object.entries(map)
+    .map(([catName, data]) => {
+      const catObj = categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
+      return {
+        name: catName,
+        amount: data.amount,
+        percentage: totalExpense > 0 ? Math.round((data.amount / totalExpense) * 100) : 0,
+        color: catObj?.color || "#FFD84D",
+        icon: catObj?.icon || "🏷️",
+        count: data.count,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
 }
 
 // 4. No Spend Streak System

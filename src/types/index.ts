@@ -47,6 +47,24 @@ export interface SafeSpendInfo {
   message: string;
 }
 
+export interface AverageSpendSinceStartInfo {
+  averageDailySpend: number;
+  totalExpenses: number;
+  totalIncome: number;
+  daysActive: number;
+  startDate: string | null;
+  message: string;
+}
+
+export interface CategorySpendItem {
+  name: string;
+  amount: number;
+  percentage: number;
+  color: string;
+  icon: string;
+  count: number;
+}
+
 export interface AnomalyInfo {
   isAnomaly: boolean;
   type: "high_spend" | "low_spend" | "normal";

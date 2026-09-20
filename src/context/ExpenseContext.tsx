@@ -9,6 +9,8 @@ import {
   SpendingStats,
   StreakInfo,
   SafeSpendInfo,
+  AverageSpendSinceStartInfo,
+  CategorySpendItem,
   AnomalyInfo,
   SyncState,
   AccountType,
@@ -19,6 +21,8 @@ import {
   calculateBalances,
   calculateSpendingStats,
   calculateSafeSpend,
+  calculateAverageSpendSinceStart,
+  calculateCategoryBreakdown,
   calculateStreak,
   calculateAnomaly,
   getLocalDateString,
@@ -38,6 +42,8 @@ interface ExpenseContextType {
   balances: AccountBalances;
   stats: SpendingStats;
   safeSpend: SafeSpendInfo;
+  averageSpendSinceStart: AverageSpendSinceStartInfo;
+  categoryBreakdown: CategorySpendItem[];
   streak: StreakInfo;
   anomaly: AnomalyInfo;
   syncState: SyncState;
@@ -122,6 +128,14 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
   const balances = useMemo(() => calculateBalances(transactions), [transactions]);
   const stats = useMemo(() => calculateSpendingStats(transactions), [transactions]);
   const safeSpend = useMemo(() => calculateSafeSpend(balances.total), [balances.total]);
+  const averageSpendSinceStart = useMemo(
+    () => calculateAverageSpendSinceStart(transactions),
+    [transactions]
+  );
+  const categoryBreakdown = useMemo(
+    () => calculateCategoryBreakdown(transactions, categories, "all"),
+    [transactions, categories]
+  );
   const streak = useMemo(() => calculateStreak(transactions), [transactions]);
   const anomaly = useMemo(() => calculateAnomaly(transactions, stats), [transactions, stats]);
 
@@ -398,6 +412,8 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
       balances,
       stats,
       safeSpend,
+      averageSpendSinceStart,
+      categoryBreakdown,
       streak,
       anomaly,
       syncState,
@@ -425,6 +441,8 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
       balances,
       stats,
       safeSpend,
+      averageSpendSinceStart,
+      categoryBreakdown,
       streak,
       anomaly,
       syncState,
