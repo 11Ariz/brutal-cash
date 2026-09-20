@@ -1,7 +1,8 @@
 {
-  "name": "expense",
-  "version": "0.1.0",
-  "private": true,
+  "name": "brutal-cash",
+  "version": "1.0.0",
+  "description": "Mobile-first, offline-first Expense Tracker + Balance Manager with a Playful Neo-Brutalist UI",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
