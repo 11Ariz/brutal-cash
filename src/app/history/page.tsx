@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useExpense } from "@/context/ExpenseContext";
 import { formatMoney, getLocalDateString } from "@/lib/calculations";
+import { tactileFeedback } from "@/lib/sound";
 import {
   Search,
   Filter,
@@ -27,6 +28,22 @@ export default function HistoryPage() {
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+
+  // Pagination State (loads 10 at once)
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  // Reset pagination whenever search or filter criteria change
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [
+    searchQuery,
+    selectedType,
+    selectedAccount,
+    selectedCategory,
+    dateFilter,
+    customStartDate,
+    customEndDate,
+  ]);
 
   // Compute filtered transactions
   const filteredTransactions = useMemo(() => {
@@ -87,11 +104,16 @@ export default function HistoryPage() {
     customEndDate,
   ]);
 
-  // Group transactions by date
-  const groupedTransactions = useMemo(() => {
-    const groups: { [date: string]: typeof filteredTransactions } = {};
+  // Slice to visible page count (10 at a time)
+  const paginatedTransactions = useMemo(() => {
+    return filteredTransactions.slice(0, visibleCount);
+  }, [filteredTransactions, visibleCount]);
 
-    for (const t of filteredTransactions) {
+  // Group visible transactions by date
+  const groupedTransactions = useMemo(() => {
+    const groups: { [date: string]: typeof paginatedTransactions } = {};
+
+    for (const t of paginatedTransactions) {
       if (!groups[t.date]) {
         groups[t.date] = [];
       }
@@ -111,7 +133,7 @@ export default function HistoryPage() {
           .filter((t) => t.type === "income")
           .reduce((sum, item) => sum + item.amount, 0),
       }));
-  }, [filteredTransactions]);
+  }, [paginatedTransactions]);
 
   const activeFilterCount =
     (selectedType !== "all" ? 1 : 0) +
@@ -154,7 +176,8 @@ export default function HistoryPage() {
             Transaction Log
           </h1>
           <p className="text-xs font-bold text-gray-600">
-            Showing {filteredTransactions.length} of {transactions.length} entries
+            Showing {Math.min(visibleCount, filteredTransactions.length)} of {filteredTransactions.length} entries
+            {filteredTransactions.length !== transactions.length ? ` (filtered from ${transactions.length})` : ""}
           </p>
         </div>
 
@@ -449,6 +472,30 @@ export default function HistoryPage() {
               </div>
             </div>
           ))}
+
+          {/* Load 10 More Pagination Button */}
+          {visibleCount < filteredTransactions.length && (
+            <div className="pt-2 text-center">
+              <button
+                onClick={() => {
+                  tactileFeedback(settings.soundEnabled, settings.hapticsEnabled);
+                  setVisibleCount((prev) => prev + 10);
+                }}
+                className="w-full brutal-btn bg-[#FFD84D] hover:bg-[#FFE57F] text-[#111111] py-3 text-xs font-black uppercase tracking-wide flex items-center justify-center gap-2"
+              >
+                <span>⚡ Load 10 More</span>
+                <span className="text-[11px] bg-[#111111] text-white px-2 py-0.5 rounded-full font-black">
+                  {filteredTransactions.length - visibleCount} left
+                </span>
+              </button>
+            </div>
+          )}
+
+          {visibleCount >= filteredTransactions.length && filteredTransactions.length > 10 && (
+            <div className="text-center py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+              ✓ All {filteredTransactions.length} entries loaded
+            </div>
+          )}
         </div>
       )}
     </div>

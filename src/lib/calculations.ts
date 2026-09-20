@@ -223,8 +223,23 @@ export function calculateCategoryBreakdown(
 }
 
 // 4. No Spend Streak System
-// Definition: A day with zero expenses
+// Definition: A day with zero expenses, tracking ONLY from the day money was first added
 export function calculateStreak(transactions: Transaction[]): StreakInfo {
+  const incomes = transactions.filter((t) => t.type === "income");
+  const referenceList = incomes.length > 0 ? incomes : transactions;
+
+  // If no transactions or money added yet, streak is 0
+  if (referenceList.length === 0) {
+    return {
+      currentStreak: 0,
+      longestStreak: 0,
+      isTodayNoSpend: true,
+    };
+  }
+
+  // Earliest date money was added
+  const earliestMoneyDateStr = referenceList.map((t) => t.date).sort()[0];
+
   const expenseDates = new Set(
     transactions.filter((t) => t.type === "expense").map((t) => t.date)
   );
@@ -232,13 +247,9 @@ export function calculateStreak(transactions: Transaction[]): StreakInfo {
   const todayStr = getLocalDateString(new Date());
   const isTodayNoSpend = !expenseDates.has(todayStr);
 
-  // Find earliest transaction date or default to 30 days ago
-  let checkDate = new Date();
-  // If today has expenses, current streak starts checking from yesterday (which might be 0)
-  // If today has 0 expenses so far, count today!
   let currentStreak = 0;
   
-  // Check backwards day by day
+  // Check backwards day by day, stopping if we hit an expense OR before first money was added
   let cursor = new Date();
   if (expenseDates.has(getLocalDateString(cursor))) {
     // Today has expense, so current active streak is 0
@@ -247,6 +258,12 @@ export function calculateStreak(transactions: Transaction[]): StreakInfo {
     // Today has no expense yet, count it and look backwards
     while (true) {
       const dateStr = getLocalDateString(cursor);
+      
+      // Stop if date is prior to when money was first added
+      if (dateStr < earliestMoneyDateStr) {
+        break;
+      }
+
       if (!expenseDates.has(dateStr)) {
         currentStreak++;
         cursor.setDate(cursor.getDate() - 1);
@@ -258,28 +275,25 @@ export function calculateStreak(transactions: Transaction[]): StreakInfo {
     }
   }
 
-  // Calculate longest streak historically in the dataset
-  // Collect all dates from first transaction to today
+  // Calculate longest streak historically in the dataset (bounded from earliest money date to today)
   let longestStreak = currentStreak;
-  if (transactions.length > 0) {
-    const dates = transactions.map((t) => t.date).sort();
-    const minDate = new Date(dates[0]);
-    const maxDate = new Date();
+  const minDate = new Date(earliestMoneyDateStr + "T00:00:00");
+  const maxDate = new Date();
+  maxDate.setHours(0, 0, 0, 0);
 
-    let tempStreak = 0;
-    const scan = new Date(minDate);
-    while (scan <= maxDate) {
-      const dStr = getLocalDateString(scan);
-      if (!expenseDates.has(dStr)) {
-        tempStreak++;
-        if (tempStreak > longestStreak) {
-          longestStreak = tempStreak;
-        }
-      } else {
-        tempStreak = 0;
+  let tempStreak = 0;
+  const scan = new Date(minDate);
+  while (scan <= maxDate) {
+    const dStr = getLocalDateString(scan);
+    if (!expenseDates.has(dStr)) {
+      tempStreak++;
+      if (tempStreak > longestStreak) {
+        longestStreak = tempStreak;
       }
-      scan.setDate(scan.getDate() + 1);
+    } else {
+      tempStreak = 0;
     }
+    scan.setDate(scan.getDate() + 1);
   }
 
   return {

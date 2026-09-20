@@ -63,7 +63,7 @@ export default function DashboardPage() {
     );
   }
 
-  const recentTransactions = transactions.slice(0, 10);
+  const recentTransactions = transactions.slice(0, 5);
 
   return (
     <div className="space-y-4 pb-6">
@@ -362,7 +362,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* 6. RECENT TRANSACTIONS (Latest 10) */}
+      {/* 6. RECENT TRANSACTIONS (Latest 5) */}
       <div className="bg-white border-3 border-[#111111] rounded-2xl p-4 brutal-shadow space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-black text-xs uppercase tracking-wider text-[#111111]">
