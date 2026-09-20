@@ -19,6 +19,12 @@ import {
   Check,
   AlertTriangle,
   RefreshCw,
+  Eye,
+  EyeOff,
+  Copy,
+  Code2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -36,6 +42,9 @@ export default function SettingsPage() {
 
   const [supabaseUrl, setSupabaseUrl] = useState(settings.supabaseUrl || "");
   const [supabaseKey, setSupabaseKey] = useState(settings.supabaseKey || "");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showSqlGuide, setShowSqlGuide] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [isTestingSync, setIsTestingSync] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -57,6 +66,38 @@ export default function SettingsPage() {
     updateSettings({ hapticsEnabled: !settings.hapticsEnabled });
   };
 
+  const SUPABASE_SETUP_SQL = `-- Run in Supabase SQL Editor:
+create table if not exists public.transactions (
+  id text primary key,
+  type text not null,
+  amount numeric not null,
+  title text not null,
+  category text not null,
+  account text not null,
+  note text,
+  date text not null,
+  "createdAt" text not null
+);
+
+alter table public.transactions enable row level security;
+
+create policy if not exists "Allow anon full access to transactions"
+on public.transactions
+for all
+to anon
+using (true)
+with check (true);`;
+
+  const handleCopySql = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
+      setCopiedSql(true);
+      setTimeout(() => setCopiedSql(false), 2500);
+    } catch {
+      // fallback
+    }
+  };
+
   // Cloud Sync Save & Test
   const handleSaveSyncConfig = async () => {
     setIsTestingSync(true);
@@ -72,10 +113,14 @@ export default function SettingsPage() {
         supabaseUrl: supabaseUrl.trim(),
         supabaseKey: supabaseKey.trim(),
       });
-      setSyncFeedback("✅ Connected & saved successfully!");
-      await triggerCloudSync();
+      setSyncFeedback(testRes.message);
+      if (testRes.tableReady) {
+        await triggerCloudSync();
+      } else {
+        setShowSqlGuide(true);
+      }
     } else {
-      setSyncFeedback(`❌ ${testRes.message}`);
+      setSyncFeedback(testRes.message);
     }
     setIsTestingSync(false);
   };
@@ -294,22 +339,47 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-[10px] font-black uppercase text-gray-500 mb-0.5">
-              Anon / Public API Key
-            </label>
-            <input
-              type="password"
-              placeholder="eyJh..."
-              value={supabaseKey}
-              onChange={(e) => setSupabaseKey(e.target.value)}
-              className="w-full brutal-input text-xs py-2 font-mono"
-            />
+            <div className="flex items-center justify-between mb-0.5">
+              <label className="block text-[10px] font-black uppercase text-gray-500">
+                Anon / Public API Key
+              </label>
+              {supabaseKey && (
+                <span className={`text-[9px] font-bold ${supabaseKey.length < 60 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {supabaseKey.length} chars {supabaseKey.length < 60 ? "(Too short?)" : "✓"}
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type={showApiKey ? "text" : "password"}
+                placeholder="eyJh..."
+                value={supabaseKey}
+                onChange={(e) => setSupabaseKey(e.target.value)}
+                className="w-full brutal-input text-xs py-2 pr-9 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#111111]"
+                title={showApiKey ? "Hide key" : "Show key"}
+              >
+                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {supabaseKey && supabaseKey.length > 0 && supabaseKey.length < 60 && (
+              <p className="mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-300 p-1.5 rounded-lg leading-tight">
+                ⚠️ Key looks like an account token or password ({supabaseKey.length} chars). Supabase anon keys are long JWT strings (~180+ chars) starting with <code>eyJh...</code>.
+              </p>
+            )}
+            <p className="mt-1 text-[9.5px] font-medium text-gray-500">
+              📍 Find this in Supabase: <strong>Project Settings ⚙️ → API → &quot;anon&quot; &quot;public&quot;</strong>
+            </p>
           </div>
 
           {syncFeedback && (
-            <p className="text-xs font-extrabold text-[#111111] bg-yellow-100 p-2 rounded-lg border border-[#111111]">
-              {syncFeedback}
-            </p>
+            <div className="text-xs font-bold text-[#111111] bg-yellow-100 p-2.5 rounded-xl border-2 border-[#111111] space-y-1">
+              <p>{syncFeedback}</p>
+            </div>
           )}
 
           <div className="flex gap-2 pt-1">
@@ -342,6 +412,49 @@ export default function SettingsPage() {
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
+            )}
+          </div>
+
+          {/* Collapsible Supabase SQL Setup Drawer */}
+          <div className="pt-2 border-t border-[#111111]/20">
+            <button
+              type="button"
+              onClick={() => setShowSqlGuide(!showSqlGuide)}
+              className="w-full flex items-center justify-between text-left text-[11px] font-black uppercase text-[#111111] py-1 hover:text-gray-700"
+            >
+              <div className="flex items-center gap-1.5">
+                <Code2 className="w-3.5 h-3.5" />
+                <span>Supabase SQL Table Setup</span>
+              </div>
+              {showSqlGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {showSqlGuide && (
+              <div className="mt-2 bg-[#FFF9E8] border-2 border-[#111111] rounded-xl p-2.5 space-y-2 text-xs">
+                <p className="text-[10px] font-bold text-gray-700">
+                  Run this once in Supabase (<strong>SQL Editor → New Query</strong>) so BRUTAL CASH can store and sync transactions:
+                </p>
+                <pre className="bg-black text-[#7BF1A8] font-mono text-[10px] p-2 rounded-lg overflow-x-auto max-h-40 border border-[#111111]">
+                  {SUPABASE_SETUP_SQL}
+                </pre>
+                <button
+                  type="button"
+                  onClick={handleCopySql}
+                  className="w-full brutal-btn-sm bg-[#7BF1A8] hover:bg-[#FFD84D] py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-1.5"
+                >
+                  {copiedSql ? (
+                    <>
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      <span>Copied to Clipboard!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Copy SQL Setup Script</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </div>
