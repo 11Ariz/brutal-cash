@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   Transaction,
   Category,
@@ -172,6 +172,14 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to save transaction to IndexedDB:", err);
       }
 
+      // Background sync to Supabase if configured
+      if (settings.supabaseUrl && settings.supabaseKey) {
+        CloudSyncService.syncPush(
+          { url: settings.supabaseUrl, anonKey: settings.supabaseKey },
+          [newTx]
+        ).catch((err) => console.error("Background sync push failed:", err));
+      }
+
       return newTx;
     },
     [settings]
@@ -194,6 +202,14 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Failed to update transaction in IndexedDB:", err);
       }
+
+      // Background sync to Supabase if configured
+      if (settings.supabaseUrl && settings.supabaseKey) {
+        CloudSyncService.syncPush(
+          { url: settings.supabaseUrl, anonKey: settings.supabaseKey },
+          [tx]
+        ).catch((err) => console.error("Background sync update failed:", err));
+      }
     },
     [settings]
   );
@@ -209,6 +225,14 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         await db.transactions.delete(id);
       } catch (err) {
         console.error("Failed to delete transaction from IndexedDB:", err);
+      }
+
+      // Background delete from Supabase if configured
+      if (settings.supabaseUrl && settings.supabaseKey) {
+        CloudSyncService.deleteRemote(
+          { url: settings.supabaseUrl, anonKey: settings.supabaseKey },
+          id
+        ).catch((err) => console.error("Background sync delete failed:", err));
       }
     },
     [settings]
@@ -255,6 +279,14 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         await db.transactions.bulkAdd([outTx, inTx]);
       } catch (err) {
         console.error("Failed to persist transfer:", err);
+      }
+
+      // Background sync to Supabase if configured
+      if (settings.supabaseUrl && settings.supabaseKey) {
+        CloudSyncService.syncPush(
+          { url: settings.supabaseUrl, anonKey: settings.supabaseKey },
+          [outTx, inTx]
+        ).catch((err) => console.error("Background sync transfer failed:", err));
       }
     },
     [settings]
@@ -368,29 +400,96 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
     [settings]
   );
 
-  // Cloud Sync Action
+  // Cloud Sync Action (Full 2-Way Bidirectional Sync)
   const triggerCloudSync = useCallback(async (): Promise<{ success: boolean; message: string }> => {
     if (!settings.supabaseUrl || !settings.supabaseKey) {
       return { success: false, message: "Configure Supabase URL and API Key in Settings first!" };
     }
 
     setSyncState("syncing");
-    const pushResult = await CloudSyncService.syncPush(
-      { url: settings.supabaseUrl, anonKey: settings.supabaseKey },
-      transactions
-    );
+    const config = { url: settings.supabaseUrl, anonKey: settings.supabaseKey };
 
-    if (pushResult.error) {
+    try {
+      // 1. Pull remote transactions from Supabase
+      const pullResult = await CloudSyncService.syncPull(config);
+      if (pullResult.error) {
+        setSyncState("error");
+        return { success: false, message: `Pull failed: ${pullResult.error}` };
+      }
+
+      const remoteTxs = pullResult.transactions || [];
+
+      // 2. Read latest local transactions from IndexedDB
+      const localTxs = await db.transactions.toArray();
+
+      // 3. Merge by ID (union of remote + local)
+      const txMap = new Map<string, Transaction>();
+      for (const tx of remoteTxs) {
+        txMap.set(tx.id, tx);
+      }
+
+      let hasNewLocalToPush = false;
+      for (const tx of localTxs) {
+        const existing = txMap.get(tx.id);
+        if (!existing) {
+          txMap.set(tx.id, tx);
+          hasNewLocalToPush = true;
+        } else {
+          // If local has a newer timestamp, keep local
+          const existingTime = new Date(existing.createdAt).getTime();
+          const localTime = new Date(tx.createdAt).getTime();
+          if (localTime > existingTime) {
+            txMap.set(tx.id, tx);
+            hasNewLocalToPush = true;
+          }
+        }
+      }
+
+      const mergedTxs = Array.from(txMap.values()).sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return b.createdAt.localeCompare(a.createdAt);
+      });
+
+      // 4. Push merged transactions back to Supabase if there are new local records or difference
+      if (mergedTxs.length > 0 && (hasNewLocalToPush || remoteTxs.length < mergedTxs.length)) {
+        const pushResult = await CloudSyncService.syncPush(config, mergedTxs);
+        if (pushResult.error) {
+          setSyncState("error");
+          return { success: false, message: `Push failed: ${pushResult.error}` };
+        }
+      }
+
+      // 5. Update local IndexedDB and React state
+      await db.transactions.clear();
+      if (mergedTxs.length > 0) {
+        await db.transactions.bulkAdd(mergedTxs);
+      }
+      setTransactions(mergedTxs);
+
+      const nowIso = new Date().toISOString();
+      await updateSettings({ lastSyncedAt: nowIso });
+      setSyncState("synced");
+      playChaChing(settings.soundEnabled);
+
+      return {
+        success: true,
+        message: `Synced! ${mergedTxs.length} transactions total (${remoteTxs.length} from cloud).`,
+      };
+    } catch (err: unknown) {
       setSyncState("error");
-      return { success: false, message: pushResult.error };
+      const msg = err instanceof Error ? err.message : "Sync error";
+      return { success: false, message: `Sync error: ${msg}` };
     }
+  }, [settings, updateSettings]);
 
-    const nowIso = new Date().toISOString();
-    await updateSettings({ lastSyncedAt: nowIso });
-    setSyncState("synced");
-    playChaChing(settings.soundEnabled);
-    return { success: true, message: `Synced ${transactions.length} transactions with Supabase!` };
-  }, [settings, transactions, updateSettings]);
+  // Auto-sync on startup once local storage is loaded and credentials exist
+  const hasAutoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (isLoaded && settings.supabaseUrl && settings.supabaseKey && !hasAutoSyncedRef.current) {
+      hasAutoSyncedRef.current = true;
+      triggerCloudSync();
+    }
+  }, [isLoaded, settings.supabaseUrl, settings.supabaseKey, triggerCloudSync]);
 
   // Modal Control
   const openAddModal = useCallback((defaults?: Partial<Transaction>) => {

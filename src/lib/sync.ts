@@ -176,7 +176,7 @@ export class CloudSyncService {
     if (!url || !anonKey) return { transactions: [], error: "Sync not configured" };
 
     try {
-      const res = await fetch(`${url}/rest/v1/transactions?select=*&order=createdAt.desc`, {
+      const res = await fetch(`${url}/rest/v1/transactions?select=*`, {
         method: "GET",
         headers: this.getHeaders(anonKey),
       });
@@ -206,10 +206,34 @@ export class CloudSyncService {
         date: String(row.date),
         createdAt: String(row.createdAt || new Date().toISOString()),
       }));
+
+      // Sort descending by date then createdAt
+      transactions.sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return b.createdAt.localeCompare(a.createdAt);
+      });
+
       return { transactions };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Sync error";
       return { transactions: [], error: msg };
+    }
+  }
+
+  // Delete single transaction from Supabase
+  static async deleteRemote(config: SyncConfig, id: string): Promise<{ success: boolean; error?: string }> {
+    const { url, anonKey } = this.sanitizeConfig(config);
+    if (!url || !anonKey || !id) return { success: false };
+
+    try {
+      const res = await fetch(`${url}/rest/v1/transactions?id=eq.${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: this.getHeaders(anonKey),
+      });
+      return { success: res.ok };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Delete error";
+      return { success: false, error: msg };
     }
   }
 }
